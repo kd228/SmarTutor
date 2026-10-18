@@ -1,6 +1,6 @@
 # Tutoring App
 
-A marketplace where freelance tutors build profiles and students find, book and pay them, similar to Wyzant.
+A marketplace where freelance tutors build profiles and students find, book and pay them.
 
 - **Tutors** sign up, set a headline, bio, subjects, rate and location, and mark paid sessions as completed.
 - **Students** search and filter tutors, book a time slot, pay through Stripe Checkout, and review the tutor after a completed session.

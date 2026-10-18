@@ -2,7 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dbPath = process.env.DB_PATH || './data/tutoring.db';
+// Vercel's filesystem is read-only except /tmp, and /tmp is wiped between instances,
+// so on Vercel this database is demo-only until it moves to a hosted database.
+const onVercel = Boolean(process.env.VERCEL);
+const dbPath = process.env.DB_PATH || (onVercel ? '/tmp/tutoring.db' : './data/tutoring.db');
+if (onVercel && !process.env.DB_PATH) {
+  console.warn('Running on Vercel with a temporary SQLite file: data will NOT persist. Use a hosted database for real use.');
+}
 if (dbPath !== ':memory:') {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 }

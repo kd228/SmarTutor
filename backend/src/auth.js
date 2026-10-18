@@ -1,6 +1,13 @@
 import jwt from 'jsonwebtoken';
 
-const secret = () => process.env.JWT_SECRET || 'dev-only-secret';
+const secret = () => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    // An unset secret in production would let anyone forge login tokens.
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  return 'dev-only-secret';
+};
 
 export function signToken(user) {
   return jwt.sign({ sub: user.id, role: user.role }, secret(), { expiresIn: '7d' });

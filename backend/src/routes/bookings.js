@@ -6,7 +6,9 @@ import { requireAuth, requireRole } from '../auth.js';
 const router = Router();
 
 const stripe = () => (process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null);
-const clientUrl = () => process.env.CLIENT_URL || 'http://localhost:5173';
+const clientUrl = () =>
+  process.env.CLIENT_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:5173');
 
 const BOOKING_SELECT = `
   SELECT b.id, b.tutor_id AS tutorId, b.student_id AS studentId, b.scheduled_at AS scheduledAt,

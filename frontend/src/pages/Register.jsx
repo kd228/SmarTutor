@@ -13,7 +13,7 @@ export default function Register() {
     setError('');
     try {
       const user = await register(form);
-      navigate(user.role === 'tutor' ? '/profile/edit' : '/');
+      navigate(user.role === 'tutor' ? '/profile/edit' : '/tutors');
     } catch (err) {
       setError(err.message);
     }

@@ -69,7 +69,7 @@ export default function Dashboard() {
       {error && <p className="error">{error}</p>}
       {bookings.length === 0 && (
         <p className="muted">
-          {isTutor ? 'No bookings yet. Make sure your profile is complete.' : <>No bookings yet. <Link to="/">Find a tutor</Link>.</>}
+          {isTutor ? 'No bookings yet. Make sure your profile is complete.' : <>No bookings yet. <Link to="/tutors">Find a tutor</Link>.</>}
         </p>
       )}
       <div className="list">

@@ -1,6 +1,8 @@
 import { Link, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth.jsx';
 import Home from './pages/Home.jsx';
+import HowItWorks from './pages/HowItWorks.jsx';
+import FindTutors from './pages/FindTutors.jsx';
 import TutorProfile from './pages/TutorProfile.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
@@ -23,28 +25,37 @@ export default function App() {
   return (
     <>
       <header className="nav">
-        <Link to="/" className="brand">TutorHub</Link>
-        <nav>
-          <NavLink to="/">Find a tutor</NavLink>
+        <Link to="/" className="brand">SmarTutor</Link>
+
+        <nav className="tabs" aria-label="Main">
+          <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/how-it-works">How it works</NavLink>
+          <NavLink to="/tutors">Find a tutor</NavLink>
+        </nav>
+
+        <div className="account">
           {user ? (
             <>
-              <NavLink to="/dashboard">Dashboard</NavLink>
-              {user.role === 'tutor' && <NavLink to="/profile/edit">My profile</NavLink>}
+              <NavLink to="/dashboard" className="account-link">Dashboard</NavLink>
+              {user.role === 'tutor' && <NavLink to="/profile/edit" className="account-link">My profile</NavLink>}
               <button className="link" onClick={() => { logout(); navigate('/'); }}>
                 Log out ({user.name.split(' ')[0]})
               </button>
             </>
           ) : (
             <>
-              <NavLink to="/login">Log in</NavLink>
+              <NavLink to="/login" className="account-link">Log in</NavLink>
               <Link to="/register" className="btn small">Sign up</Link>
             </>
           )}
-        </nav>
+        </div>
       </header>
+
       <main className="container">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/tutors" element={<FindTutors />} />
           <Route path="/tutors/:id" element={<TutorProfile />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -54,6 +65,15 @@ export default function App() {
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>
+
+      <footer className="footer">
+        <span className="footer-brand">SmarTutor</span>
+        <nav aria-label="Footer">
+          <Link to="/how-it-works">How it works</Link>
+          <Link to="/tutors">Find a tutor</Link>
+          <Link to="/register">Become a tutor</Link>
+        </nav>
+      </footer>
     </>
   );
 }

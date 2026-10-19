@@ -25,7 +25,6 @@ const shape = (row) => ({
   reviewCount: Number(row.review_count),
 });
 
-// Browse / search tutors
 router.get('/', (req, res) => {
   const { q, subject, maxRate, sort } = req.query;
   const where = ["p.hourly_rate_cents > 0", "p.headline != ''"];
@@ -56,7 +55,6 @@ router.get('/', (req, res) => {
   res.json({ tutors: rows.map(shape) });
 });
 
-// The signed-in tutor's own profile (declared before /:id so "me" isn't treated as an id)
 router.get('/me/profile', requireAuth, requireRole('tutor'), (req, res) => {
   const row = db.prepare(`${TUTOR_SELECT} WHERE u.id = ? GROUP BY u.id`).get(req.user.id);
   res.json({ tutor: shape(row) });
@@ -93,7 +91,37 @@ router.put('/me/profile', requireAuth, requireRole('tutor'), (req, res) => {
   res.json({ tutor: shape(row) });
 });
 
-// Public tutor profile with reviews
+router.post('/me/packages', requireAuth, requireRole('tutor'), (req, res) => {
+  const { title, description = '', subject, sessionsCount, durationMinutes = 60, price } = req.body || {};
+  const count = Number(sessionsCount);
+  const duration = Number(durationMinutes);
+  const priceCents = Math.round(Number(price) * 100);
+
+  if (!title || !subject || !Number.isInteger(count) || count < 2 || count > 50) {
+    return res.status(400).json({ error: 'Provide a title, subject, and session count (2-50)' });
+  }
+  if (!Number.isFinite(priceCents) || priceCents < 1000) {
+    return res.status(400).json({ error: 'Package price must be at least $10' });
+  }
+
+  const result = db
+    .prepare(
+      `INSERT INTO course_packages (tutor_id, title, description, subject, sessions_count, duration_minutes, price_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(req.user.id, title, description, subject, count, duration, priceCents);
+  const packageId = Number(result.lastInsertRowid);
+
+  res.status(201).json({ packageId, ok: true });
+});
+
+router.get('/:id/packages', (req, res) => {
+  const rows = db
+    .prepare('SELECT * FROM course_packages WHERE tutor_id = ? ORDER BY created_at DESC')
+    .all(Number(req.params.id));
+  res.json({ packages: rows });
+});
+
 router.get('/:id', (req, res) => {
   const row = db.prepare(`${TUTOR_SELECT} WHERE u.id = ? GROUP BY u.id`).get(Number(req.params.id));
   if (!row) return res.status(404).json({ error: 'Tutor not found' });
@@ -106,7 +134,11 @@ router.get('/:id', (req, res) => {
     )
     .all(row.id);
 
-  res.json({ tutor: shape(row), reviews });
+  const packages = db
+    .prepare('SELECT * FROM course_packages WHERE tutor_id = ? ORDER BY created_at DESC')
+    .all(row.id);
+
+  res.json({ tutor: shape(row), reviews, packages });
 });
 
 export default router;

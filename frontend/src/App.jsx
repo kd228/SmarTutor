@@ -25,7 +25,10 @@ export default function App() {
   return (
     <>
       <header className="nav">
-        <Link to="/" className="brand">SmarTutor</Link>
+        <Link to="/" className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+          <img src="/logo.png" alt="SmarTutor Logo" style={{ height: '36px', width: 'auto' }} />
+          <span>SmarTutor</span>
+        </Link>
 
         <nav className="tabs" aria-label="Main">
           <NavLink to="/" end>Home</NavLink>

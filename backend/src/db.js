@@ -2,8 +2,6 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Vercel's filesystem is read-only except /tmp, and /tmp is wiped between instances,
-// so on Vercel this database is demo-only until it moves to a hosted database.
 const onVercel = Boolean(process.env.VERCEL);
 const dbPath = process.env.DB_PATH || (onVercel ? '/tmp/tutoring.db' : './data/tutoring.db');
 if (onVercel && !process.env.DB_PATH) {
@@ -37,10 +35,23 @@ CREATE TABLE IF NOT EXISTS tutor_profiles (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS course_packages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL,
+  sessions_count INTEGER NOT NULL,
+  duration_minutes INTEGER NOT NULL DEFAULT 60,
+  price_cents INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS bookings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tutor_id INTEGER NOT NULL REFERENCES users(id),
   student_id INTEGER NOT NULL REFERENCES users(id),
+  package_id INTEGER REFERENCES course_packages(id),
   scheduled_at TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL,
   amount_cents INTEGER NOT NULL,
@@ -62,9 +73,15 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS processed_stripe_events (
+  event_id TEXT PRIMARY KEY,
+  processed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_bookings_tutor ON bookings(tutor_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_student ON bookings(student_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_tutor ON reviews(tutor_id);
+CREATE INDEX IF NOT EXISTS idx_packages_tutor ON course_packages(tutor_id);
 `);
 
 export default db;

@@ -1,21 +1,25 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'student' });
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
+    setBusy(true);
     setError('');
     try {
-      const user = await register(form);
-      navigate(user.role === 'tutor' ? '/profile/edit' : '/tutors');
+      const user = await register({ ...form, name: form.name.trim(), email: form.email.trim() });
+      navigate(user.role === 'tutor' ? '/profile/edit' : location.state?.from || '/tutors', { replace: true });
     } catch (err) {
       setError(err.message);
+      setBusy(false);
     }
   };
 
@@ -33,16 +37,18 @@ export default function Register() {
         ))}
       </div>
       <label>Full name
-        <input required value={form.name} onChange={set('name')} autoComplete="name" />
+        <input required maxLength={100} value={form.name} onChange={set('name')} autoComplete="name" />
       </label>
       <label>Email
         <input type="email" required value={form.email} onChange={set('email')} autoComplete="email" />
       </label>
-      <label>Password (8+ characters)
-        <input type="password" required minLength={8} value={form.password} onChange={set('password')} autoComplete="new-password" />
+      <label>Password
+        <input type="password" required minLength={8} maxLength={128} value={form.password}
+          onChange={set('password')} autoComplete="new-password" aria-describedby="pw-hint" />
+        <span id="pw-hint" className="muted field-hint">At least 8 characters.</span>
       </label>
-      {error && <p className="error">{error}</p>}
-      <button className="btn">Sign up</button>
+      {error && <p className="error" role="alert">{error}</p>}
+      <button className="btn" disabled={busy}>{busy ? 'Creating account…' : 'Sign up'}</button>
       <p className="muted">Already have an account? <Link to="/login">Log in</Link></p>
     </form>
   );

@@ -1,87 +1,61 @@
-import { DatabaseSync } from 'node:sqlite';
-import fs from 'node:fs';
-import path from 'node:path';
+import pg from 'pg';
 
-const onVercel = Boolean(process.env.VERCEL);
-const dbPath = process.env.DB_PATH || (onVercel ? '/tmp/tutoring.db' : './data/tutoring.db');
-if (onVercel && !process.env.DB_PATH) {
-  console.warn('Running on Vercel with a temporary SQLite file: data will NOT persist. Use a hosted database for real use.');
+const { Pool, types } = pg;
+
+// Return COUNT()/bigint and numeric values as JavaScript numbers (all counts here are small).
+types.setTypeParser(20, (v) => Number(v));
+types.setTypeParser(1700, (v) => Number(v));
+
+let pool;
+
+export const hasDatabase = () => Boolean(process.env.DATABASE_URL);
+
+function getPool() {
+  if (pool) return pool;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  const isLocal = /@(localhost|127\.0\.0\.1)(:|\/)/.test(url);
+  // A "sslmode=require" in the URL would make the driver verify the certificate chain, which fails
+  // against Supabase's pooler. Connections are still encrypted; see the ssl option below.
+  const connectionString = url.replace(/([?&])sslmode=[^&]*&?/, '$1').replace(/[?&]$/, '');
+  pool = new Pool({
+    connectionString,
+    max: 3, // serverless functions: keep connections per instance low
+    // Hosted Postgres (Supabase, Neon) requires TLS; their certificates are not in Node's default trust store.
+    ssl: isLocal ? false : { rejectUnauthorized: false },
+  });
+  pool.on('error', (err) => console.error('Postgres pool error:', err.message));
+  return pool;
 }
-if (dbPath !== ':memory:') {
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+export async function query(text, params = []) {
+  const result = await getPool().query(text, params);
+  return result.rows;
 }
 
-const db = new DatabaseSync(dbPath);
-db.exec('PRAGMA foreign_keys = ON;');
-db.exec('PRAGMA journal_mode = WAL;');
+export async function one(text, params = []) {
+  const rows = await query(text, params);
+  return rows[0] || null;
+}
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('student', 'tutor')),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+// Runs `fn` inside one transaction. `fn` receives { query, one } bound to that transaction.
+export async function transaction(fn) {
+  const client = await getPool().connect();
+  const run = async (text, params = []) => (await client.query(text, params)).rows;
+  try {
+    await client.query('begin');
+    const result = await fn({ query: run, one: async (text, params) => (await run(text, params))[0] || null });
+    await client.query('commit');
+    return result;
+  } catch (err) {
+    await client.query('rollback').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
-CREATE TABLE IF NOT EXISTS tutor_profiles (
-  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  headline TEXT NOT NULL DEFAULT '',
-  bio TEXT NOT NULL DEFAULT '',
-  subjects TEXT NOT NULL DEFAULT '',
-  hourly_rate_cents INTEGER NOT NULL DEFAULT 0,
-  location TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS course_packages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  subject TEXT NOT NULL,
-  sessions_count INTEGER NOT NULL,
-  duration_minutes INTEGER NOT NULL DEFAULT 60,
-  price_cents INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS bookings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  tutor_id INTEGER NOT NULL REFERENCES users(id),
-  student_id INTEGER NOT NULL REFERENCES users(id),
-  package_id INTEGER REFERENCES course_packages(id),
-  scheduled_at TEXT NOT NULL,
-  duration_minutes INTEGER NOT NULL,
-  amount_cents INTEGER NOT NULL,
-  platform_fee_cents INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'pending_payment'
-    CHECK (status IN ('pending_payment', 'paid', 'completed', 'cancelled')),
-  stripe_session_id TEXT,
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS reviews (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id),
-  tutor_id INTEGER NOT NULL REFERENCES users(id),
-  student_id INTEGER NOT NULL REFERENCES users(id),
-  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  comment TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS processed_stripe_events (
-  event_id TEXT PRIMARY KEY,
-  processed_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_bookings_tutor ON bookings(tutor_id);
-CREATE INDEX IF NOT EXISTS idx_bookings_student ON bookings(student_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_tutor ON reviews(tutor_id);
-CREATE INDEX IF NOT EXISTS idx_packages_tutor ON course_packages(tutor_id);
-`);
-
-export default db;
+export async function closePool() {
+  if (pool) await pool.end();
+  pool = undefined;
+}

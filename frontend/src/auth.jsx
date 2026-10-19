@@ -12,7 +12,8 @@ export function AuthProvider({ children }) {
     if (!getToken()) return;
     api('/auth/me')
       .then((d) => setUser(d.user))
-      .catch(() => setToken(null))
+      // Only a rejected token ends the session; a network blip or server error must not log people out.
+      .catch((err) => { if (err.status === 401) setToken(null); })
       .finally(() => setLoading(false));
   }, []);
 

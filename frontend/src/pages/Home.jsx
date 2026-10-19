@@ -81,7 +81,7 @@ export default function Home() {
         <div className="home-hero-copy">
           <h1 className="display">Get unstuck with a tutor who&rsquo;s been there.</h1>
           <p className="lede">
-            Browse independent tutors, compare rates and reviews from real sessions, and book a time in a few clicks.
+            Book a single session or sign up for a multi-week course. Compare rates and reviews from real sessions before you pay.
           </p>
           <div className="cta-row">
             <Link to="/tutors" className="btn big">Find a tutor</Link>
@@ -103,14 +103,25 @@ export default function Home() {
         </ul>
       </section>
 
+      <section className="course-promo" aria-labelledby="course-title">
+        <div>
+          <h2 id="course-title" className="section-title">Stuck on a whole course? Work through it together.</h2>
+          <p>
+            Tutors offer courses that run for weeks, such as twelve sessions of Calculus I. You pay one price
+            up front, and every session is tracked in your dashboard.
+          </p>
+        </div>
+        <Link to="/courses" className="btn big">Browse courses</Link>
+      </section>
+
       <section className="tutor-band" aria-labelledby="teach-title">
         <div className="tutor-band-copy">
           <h2 id="teach-title" className="section-title">Teach what you know.</h2>
-          <p>Create a profile with your subjects, rate and bio. Students find you in search, book a time and pay online.</p>
+          <p>Create a profile with your subjects, rate and bio, then offer single sessions or multi-week courses. Students find you, book and pay online.</p>
         </div>
         <div className="cta-row">
           {!user && <Link to="/register" className="btn big accent">Create a tutor profile</Link>}
-          {user?.role === 'tutor' && <Link to="/profile/edit" className="btn big accent">Edit your profile</Link>}
+          {user?.role === 'tutor' && <Link to="/my-courses" className="btn big accent">Create a course</Link>}
           <Link to="/how-it-works?for=tutor" className="btn big outline-light">How tutors get started</Link>
         </div>
       </section>

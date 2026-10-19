@@ -76,14 +76,7 @@ p { margin: 0 0 0.75rem; }
   letter-spacing: -0.03em;
   color: var(--ink);
 }
-.brand::before {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--marker);
-  box-shadow: 4px 4px 0 var(--board);
-}
+.brand svg, .footer-brand svg { flex: none; }
 .brand:hover { text-decoration: none; }
 
 .tabs {
@@ -122,7 +115,7 @@ p { margin: 0 0 0.75rem; }
   border-top: 1px solid var(--line);
   color: var(--muted);
 }
-.footer-brand { font-family: var(--font-display); font-weight: 700; color: var(--ink); }
+.footer-brand { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; color: var(--ink); }
 .footer nav { display: flex; gap: 20px; }
 .footer a { color: var(--muted); }
 
@@ -451,6 +444,77 @@ input:focus, select:focus, textarea:focus { border-color: var(--focus); }
 .pill.cancelled { background: #fdecec; color: var(--danger); }
 .pill.pending_payment { background: #fff1c9; color: #7a5600; }
 
+/* ---------- Courses ---------- */
+.course-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.course-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+.course-card:hover { border-color: var(--board); text-decoration: none; }
+.course-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.course-title { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; letter-spacing: -0.02em; }
+.course-tutor { color: var(--muted); }
+.course-meta { font-weight: 600; margin-top: 8px; }
+.course-sub { color: var(--muted); }
+.course-price { text-align: right; white-space: nowrap; }
+.per-session { display: block; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
+
+.course-promo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: center;
+  margin-top: 88px;
+  padding: 40px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.course-promo .section-title { margin-bottom: 12px; max-width: 22ch; }
+.course-promo p { color: var(--muted); max-width: 56ch; margin: 0; }
+
+.facts { margin: 20px 0 0; border-top: 1px solid var(--line); }
+.facts > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.facts dt { color: var(--muted); font-weight: 600; }
+.facts dd { margin: 0; }
+.page-head.tight { padding-top: 0; }
+.box-title { font-size: 1.1rem; margin: 0; }
+.schedule-preview ol { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.95rem; }
+.schedule-preview .more { color: var(--muted); }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 20px; }
+.field-hint { font-weight: 400; font-size: 0.85rem; margin: 0; }
+.section-sub { font-size: 1.35rem; margin: 32px 0 4px; }
+
+.form-card { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; max-width: 760px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.form-grid .wide { grid-column: 1 / -1; }
+
+/* ---------- Dashboard: course progress ---------- */
+.enrollment { display: flex; flex-direction: column; gap: 10px; }
+.enrollment-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.enrollment-head .actions { display: flex; gap: 8px; align-items: flex-start; }
+.progress { height: 8px; border-radius: 999px; background: var(--board-tint); overflow: hidden; }
+.progress span { display: block; height: 100%; border-radius: 999px; background: var(--board); }
+.session-list summary { cursor: pointer; font-weight: 600; color: var(--link); }
+.session-list ol { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.session-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.session-done { color: var(--ok); font-weight: 600; }
+.pill.active { background: #e3f1ff; color: #1864ab; }
+
+/* ---------- Narrower desktops: tabs move to their own row ---------- */
+@media (max-width: 1040px) {
+  .nav { flex-wrap: wrap; }
+  .tabs { order: 3; width: 100%; }
+  .tabs a { flex: 1; text-align: center; }
+}
+
 /* ---------- Small screens ---------- */
 @media (max-width: 900px) {
   .home-hero { grid-template-columns: 1fr; gap: 36px; }
@@ -461,6 +525,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--focus); }
   .filters { grid-template-columns: 1fr 1fr; }
   .profile-layout { grid-template-columns: 1fr; }
   .booking-box { position: static; }
+  .course-promo { grid-template-columns: 1fr; gap: 20px; }
 }
 
 @media (max-width: 720px) {
@@ -472,6 +537,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--focus); }
   .tutor-row .price { grid-column: 2; }
   .step { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; }
   .footer { flex-direction: column; align-items: flex-start; }
+  .course-card { grid-template-columns: 1fr; }
+  .course-price { text-align: left; }
+  .form-grid { grid-template-columns: 1fr; }
+  .facts > div { grid-template-columns: 1fr; gap: 2px; }
+  .enrollment-head { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {

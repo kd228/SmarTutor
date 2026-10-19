@@ -1,17 +1,20 @@
 import { Router } from 'express';
-import db from '../db.js';
+import { one, query } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+import { likeTerm, parseId, wrap } from '../util.js';
+import { COURSE_SELECT, courseShape } from '../shapes.js';
 
 const router = Router();
 
 const TUTOR_SELECT = `
-  SELECT u.id, u.name, p.headline, p.bio, p.subjects, p.hourly_rate_cents, p.location,
-         COALESCE(ROUND(AVG(r.rating), 2), 0) AS avg_rating,
-         COUNT(r.id) AS review_count
-  FROM users u
-  JOIN tutor_profiles p ON p.user_id = u.id
-  LEFT JOIN reviews r ON r.tutor_id = u.id
+  select u.id, u.name, p.headline, p.bio, p.subjects, p.hourly_rate_cents, p.location,
+         coalesce(round(avg(r.rating)::numeric, 2), 0)::float8 as avg_rating,
+         count(r.id)::int as review_count
+  from users u
+  join tutor_profiles p on p.user_id = u.id
+  left join reviews r on r.tutor_id = u.id
 `;
+const GROUP_BY = 'group by u.id, p.user_id';
 
 const shape = (row) => ({
   id: row.id,
@@ -25,42 +28,42 @@ const shape = (row) => ({
   reviewCount: Number(row.review_count),
 });
 
-router.get('/', (req, res) => {
+// Browse / search tutors
+router.get('/', wrap(async (req, res) => {
   const { q, subject, maxRate, sort } = req.query;
-  const where = ["p.hourly_rate_cents > 0", "p.headline != ''"];
+  const where = ['p.hourly_rate_cents > 0', "p.headline <> ''"];
   const params = [];
+  const add = (value) => { params.push(value); return `$${params.length}`; };
 
-  if (subject) {
-    where.push('LOWER(p.subjects) LIKE ?');
-    params.push(`%${String(subject).toLowerCase()}%`);
-  }
+  if (subject) where.push(`lower(p.subjects) like ${add(likeTerm(subject))}`);
   if (q) {
-    where.push('(LOWER(u.name) LIKE ? OR LOWER(p.headline) LIKE ? OR LOWER(p.subjects) LIKE ?)');
-    const term = `%${String(q).toLowerCase()}%`;
-    params.push(term, term, term);
+    const term = add(likeTerm(q));
+    where.push(`(lower(u.name) like ${term} or lower(p.headline) like ${term} or lower(p.subjects) like ${term})`);
   }
-  if (maxRate && !Number.isNaN(Number(maxRate))) {
-    where.push('p.hourly_rate_cents <= ?');
-    params.push(Math.round(Number(maxRate) * 100));
+  if (maxRate && Number.isFinite(Number(maxRate))) {
+    where.push(`p.hourly_rate_cents <= ${add(Math.min(Math.round(Number(maxRate) * 100), 1_000_000_000))}`);
   }
 
   const order =
-    sort === 'price' ? 'p.hourly_rate_cents ASC' :
-    sort === 'reviews' ? 'review_count DESC' :
-    'avg_rating DESC, review_count DESC';
+    sort === 'price' ? 'p.hourly_rate_cents asc' :
+    sort === 'reviews' ? 'review_count desc, avg_rating desc' :
+    'avg_rating desc, review_count desc';
 
-  const rows = db
-    .prepare(`${TUTOR_SELECT} WHERE ${where.join(' AND ')} GROUP BY u.id ORDER BY ${order} LIMIT 60`)
-    .all(...params);
+  const rows = await query(
+    `${TUTOR_SELECT} where ${where.join(' and ')} ${GROUP_BY} order by ${order} limit 60`,
+    params
+  );
   res.json({ tutors: rows.map(shape) });
-});
+}));
 
-router.get('/me/profile', requireAuth, requireRole('tutor'), (req, res) => {
-  const row = db.prepare(`${TUTOR_SELECT} WHERE u.id = ? GROUP BY u.id`).get(req.user.id);
+// The signed-in tutor's own profile (declared before /:id so "me" isn't treated as an id)
+router.get('/me/profile', requireAuth, requireRole('tutor'), wrap(async (req, res) => {
+  const row = await one(`${TUTOR_SELECT} where u.id = $1 ${GROUP_BY}`, [req.user.id]);
+  if (!row) return res.status(404).json({ error: 'Profile not found' });
   res.json({ tutor: shape(row) });
-});
+}));
 
-router.put('/me/profile', requireAuth, requireRole('tutor'), (req, res) => {
+router.put('/me/profile', requireAuth, requireRole('tutor'), wrap(async (req, res) => {
   const { headline = '', bio = '', subjects = [], hourlyRate, location = '' } = req.body || {};
   const rate = Number(hourlyRate);
   if (!Number.isFinite(rate) || rate < 5 || rate > 500) {
@@ -74,71 +77,49 @@ router.put('/me/profile', requireAuth, requireRole('tutor'), (req, res) => {
     .filter(Boolean)
     .slice(0, 12);
 
-  db.prepare(
-    `UPDATE tutor_profiles
-     SET headline = ?, bio = ?, subjects = ?, hourly_rate_cents = ?, location = ?, updated_at = datetime('now')
-     WHERE user_id = ?`
-  ).run(
-    String(headline).trim().slice(0, 120),
-    String(bio).trim().slice(0, 4000),
-    subjectList.join(','),
-    Math.round(rate * 100),
-    String(location).trim().slice(0, 120),
-    req.user.id
+  await query(
+    `update tutor_profiles
+     set headline = $1, bio = $2, subjects = $3, hourly_rate_cents = $4, location = $5, updated_at = now()
+     where user_id = $6`,
+    [
+      String(headline).trim().slice(0, 120),
+      String(bio).trim().slice(0, 4000),
+      subjectList.join(','),
+      Math.round(rate * 100),
+      String(location).trim().slice(0, 120),
+      req.user.id,
+    ]
   );
 
-  const row = db.prepare(`${TUTOR_SELECT} WHERE u.id = ? GROUP BY u.id`).get(req.user.id);
+  const row = await one(`${TUTOR_SELECT} where u.id = $1 ${GROUP_BY}`, [req.user.id]);
   res.json({ tutor: shape(row) });
-});
+}));
 
-router.post('/me/packages', requireAuth, requireRole('tutor'), (req, res) => {
-  const { title, description = '', subject, sessionsCount, durationMinutes = 60, price } = req.body || {};
-  const count = Number(sessionsCount);
-  const duration = Number(durationMinutes);
-  const priceCents = Math.round(Number(price) * 100);
-
-  if (!title || !subject || !Number.isInteger(count) || count < 2 || count > 50) {
-    return res.status(400).json({ error: 'Provide a title, subject, and session count (2-50)' });
-  }
-  if (!Number.isFinite(priceCents) || priceCents < 1000) {
-    return res.status(400).json({ error: 'Package price must be at least $10' });
-  }
-
-  const result = db
-    .prepare(
-      `INSERT INTO course_packages (tutor_id, title, description, subject, sessions_count, duration_minutes, price_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(req.user.id, title, description, subject, count, duration, priceCents);
-  const packageId = Number(result.lastInsertRowid);
-
-  res.status(201).json({ packageId, ok: true });
-});
-
-router.get('/:id/packages', (req, res) => {
-  const rows = db
-    .prepare('SELECT * FROM course_packages WHERE tutor_id = ? ORDER BY created_at DESC')
-    .all(Number(req.params.id));
-  res.json({ packages: rows });
-});
-
-router.get('/:id', (req, res) => {
-  const row = db.prepare(`${TUTOR_SELECT} WHERE u.id = ? GROUP BY u.id`).get(Number(req.params.id));
+// Public tutor profile with reviews and active courses
+router.get('/:id', wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  const row = id && (await one(`${TUTOR_SELECT} where u.id = $1 ${GROUP_BY}`, [id]));
   if (!row) return res.status(404).json({ error: 'Tutor not found' });
 
-  const reviews = db
-    .prepare(
-      `SELECT r.id, r.rating, r.comment, r.created_at AS createdAt, s.name AS studentName
-       FROM reviews r JOIN users s ON s.id = r.student_id
-       WHERE r.tutor_id = ? ORDER BY r.created_at DESC LIMIT 50`
-    )
-    .all(row.id);
+  const reviews = await query(
+    `select r.id, r.rating, r.comment, r.created_at as "createdAt",
+            s.name as "studentName", c.title as "courseTitle"
+     from reviews r
+     join users s on s.id = r.student_id
+     left join enrollments e on e.id = r.enrollment_id
+     left join courses c on c.id = e.course_id
+     where r.tutor_id = $1
+     order by r.created_at desc
+     limit 50`,
+    [row.id]
+  );
 
-  const packages = db
-    .prepare('SELECT * FROM course_packages WHERE tutor_id = ? ORDER BY created_at DESC')
-    .all(row.id);
+  const courses = await query(
+    `${COURSE_SELECT} where c.tutor_id = $1 and c.status = 'active' order by c.created_at desc`,
+    [row.id]
+  );
 
-  res.json({ tutor: shape(row), reviews, packages });
-});
+  res.json({ tutor: shape(row), reviews, courses: courses.map(courseShape) });
+}));
 
 export default router;

@@ -2,12 +2,13 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { signToken, requireAuth } from '../auth.js';
+import { authLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
 const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
 
-router.post('/register', (req, res) => {
+router.post('/register', authLimiter, (req, res) => {
   const { email, password, name, role } = req.body || {};
   if (!email || !password || !name || !['student', 'tutor'].includes(role)) {
     return res.status(400).json({ error: 'Name, email, password and a role (student or tutor) are required' });
@@ -38,7 +39,7 @@ router.post('/register', (req, res) => {
   res.status(201).json({ token: signToken(user), user: publicUser(user) });
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', authLimiter, (req, res) => {
   const { email, password } = req.body || {};
   const user = db
     .prepare('SELECT * FROM users WHERE email = ?')
